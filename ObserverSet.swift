@@ -26,20 +26,23 @@
 //
 
 import Dispatch
+import Foundation
 
-class ObserverSetEntry<Parameters> {
+public class ObserverSetEntry<Parameters> {
     
     fileprivate weak var object: AnyObject?
+    fileprivate let operationQueue: OperationQueue?
     fileprivate let f: (AnyObject) -> (Parameters) -> Void
     
-    fileprivate init(object: AnyObject, f: @escaping (AnyObject) -> (Parameters) -> Void) {
+    fileprivate init(object: AnyObject, operationQueue: OperationQueue?, f: @escaping (AnyObject) -> (Parameters) -> Void) {
         self.object = object
+        self.operationQueue = operationQueue
         self.f = f
     }
     
 }
 
-class ObserverSet<Parameters> {
+public class ObserverSet<Parameters> {
     
     // Locking support
     
@@ -53,49 +56,56 @@ class ObserverSet<Parameters> {
     
     fileprivate var entries: [ObserverSetEntry<Parameters>] = []
     
-    init() {}
+    public init() {}
     
-    /// Adds an observer `object`, whose method `f` will be called on notification.
+    /// Adds an observer `object`, whose method `f` will be called on notification. The method will be added to `queue` if supplied, otherwise it is run synchronously on the notifying thread.
     /// - Note: Because `object` is held weakly there may be no need to keep a reference to the returned
     /// observer set entry for explicit removal.
     /// - returns: an observer set entry which can be passed to `remove:` to stop observing
     @discardableResult
-    func add<T: AnyObject>(_ object: T, _ f: @escaping (T) -> (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
-        let entry = ObserverSetEntry<Parameters>(object: object, f: { f($0 as! T) })
+    public func add<T: AnyObject>(_ object: T, operationQueue: OperationQueue? = nil, _ f: @escaping (T) -> (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
+        let entry = ObserverSetEntry<Parameters>(object: object, operationQueue: operationQueue, f: { f($0 as! T) })
         synchronized {
             self.entries.append(entry)
         }
         return entry
     }
     
-    /// Adds an observer `f` which will be called on notification.
+    /// Adds an observer `f` which will be called on notification. The method will be added to `queue` if supplied, otherwise it is run synchronously on the notifying thread.
     /// - returns: an observer set entry which should be passed to `remove:` to stop observing
-    func add(_ f: @escaping (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
-        return self.add(self, { ignored in f })
+    @discardableResult
+    public func add(_ operationQueue: OperationQueue? = nil, _ f: @escaping (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
+        return self.add(self, operationQueue: operationQueue, { _ in f })
     }
     
     /// Removes an observer set entry.
-    func remove(_ entry: ObserverSetEntry<Parameters>) {
+    public func remove(_ entry: ObserverSetEntry<Parameters>) {
         synchronized {
-            self.entries = self.entries.filter{ $0 !== entry }
+            self.entries = self.entries.filter { $0 !== entry }
         }
     }
     
     /// Notifies current observers.
-    func notify(_ parameters: Parameters) {
-        var toCall: [(Parameters) -> Void] = []
+    public func notify(_ parameters: Parameters) {
+        var toCall: [(OperationQueue?, (Parameters) -> Void)] = []
         
         synchronized {
             for entry in self.entries {
                 if let object: AnyObject = entry.object {
-                    toCall.append(entry.f(object))
+                    toCall.append((entry.operationQueue, entry.f(object)))
                 }
             }
-            self.entries = self.entries.filter{ $0.object != nil }
+            self.entries = self.entries.filter { $0.object != nil }
         }
         
-        for f in toCall {
-            f(parameters)
+        for (operationQueue, f) in toCall {
+            if let operationQueue = operationQueue {
+                operationQueue.addOperation(BlockOperation(block: {
+                    f(parameters)
+                }))
+            } else {
+                f(parameters)
+            }
         }
     }
     
@@ -103,13 +113,13 @@ class ObserverSet<Parameters> {
 
 extension ObserverSet: CustomStringConvertible {
     
-    var description: String {
+    public var description: String {
         var entries: [ObserverSetEntry<Parameters>] = []
         synchronized {
             entries = self.entries
         }
         
-        let strings = entries.map{
+        let strings = entries.map {
             entry in
             (entry.object === self
                 ? "\(entry.f)"

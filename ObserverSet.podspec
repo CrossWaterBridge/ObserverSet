@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
   s.name         = "ObserverSet"
-  s.version      = "1.0.0"
-  s.summary      = "Swift implementation of Observer Sets"
+  s.version      = "1.0.1"
+  s.summary      = "Swift implementation of observer sets"
   s.author       = 'Michael Ash'
   s.homepage     = "https://github.com/CrossWaterBridge/ObserverSet"
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
