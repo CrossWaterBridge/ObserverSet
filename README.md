@@ -1,11 +1,11 @@
-# Swiftification
+# ObserverSet
 
-[![Pod Version](https://img.shields.io/cocoapods/v/Swiftification.svg)](Swiftification.podspec)
-[![Pod License](https://img.shields.io/cocoapods/l/Swiftification.svg)](LICENSE)
-[![Pod Platform](https://img.shields.io/cocoapods/p/Swiftification.svg)](Swiftification.podspec)
-[![Build Status](https://img.shields.io/travis/CrossWaterBridge/Swiftification.svg?branch=master)](https://travis-ci.org/CrossWaterBridge/Swiftification)
+[![Pod Version](https://img.shields.io/cocoapods/v/ObserverSet.svg)](ObserverSet.podspec)
+[![Pod License](https://img.shields.io/cocoapods/l/ObserverSet.svg)](LICENSE)
+[![Pod Platform](https://img.shields.io/cocoapods/p/ObserverSet.svg)](ObserverSet.podspec)
+[![Build Status](https://img.shields.io/travis/CrossWaterBridge/ObserverSet.svg?branch=master)](https://travis-ci.org/CrossWaterBridge/ObserverSet)
 
-Swift extensions to make life more pleasant.
+Swift implementation of observer sets.
 
 ### Installation
 
@@ -14,7 +14,7 @@ Install with CocoaPods by adding the following to your Podfile:
 ```
 use_frameworks!
 
-pod 'Swiftification'
+pod 'ObserverSet'
 ```
 
 Then run:
@@ -25,8 +25,8 @@ pod install
 
 ### Documentation
 
-See docs at http://cocoadocs.org/docsets/Swiftification/.
+See docs at http://cocoadocs.org/docsets/ObserverSet/.
 
 ### License
 
-Swiftification is released under the MIT license. See LICENSE for details.
+ObserverSet is released under the MIT license. See LICENSE for details.
