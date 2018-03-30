@@ -32,9 +32,9 @@ public class ObserverSetEntry<Parameters> {
     
     fileprivate weak var object: AnyObject?
     fileprivate let operationQueue: OperationQueue?
-    fileprivate let f: (AnyObject) -> (Parameters) -> Void
+    fileprivate let f: (Any) -> (Parameters) -> Void
     
-    fileprivate init(object: AnyObject, operationQueue: OperationQueue?, f: @escaping (AnyObject) -> (Parameters) -> Void) {
+    fileprivate init(object: AnyObject, operationQueue: OperationQueue?, f: @escaping (Any) -> (Parameters) -> Void) {
         self.object = object
         self.operationQueue = operationQueue
         self.f = f
@@ -48,7 +48,7 @@ public class ObserverSet<Parameters> {
     
     fileprivate var queue = DispatchQueue(label: "com.mikeash.ObserverSet", attributes: [])
     
-    fileprivate func synchronized(_ f: () -> Void) {
+    fileprivate func synchronized(_ f: (() -> Void)) {
         queue.sync(execute: f)
     }
     
@@ -91,7 +91,7 @@ public class ObserverSet<Parameters> {
         
         synchronized {
             for entry in self.entries {
-                if let object: AnyObject = entry.object {
+                if let object = entry.object {
                     toCall.append((entry.operationQueue, entry.f(object)))
                 }
             }
@@ -130,4 +130,10 @@ extension ObserverSet: CustomStringConvertible {
         return "\(Mirror(reflecting: self)): (\(joined))"
     }
     
+}
+
+public extension ObserverSet where Parameters == Void {
+    public func notify() {
+        notify(())
+    }
 }
