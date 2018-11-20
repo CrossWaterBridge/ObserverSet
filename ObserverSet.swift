@@ -109,6 +109,12 @@ public class ObserverSet<Parameters> {
         }
     }
     
+    public func notify() {
+        guard let parameters = ObserverSetEntry<Parameters>(object: self, operationQueue: nil, f: { _ in return { _ in } }) as? Parameters else { return }
+
+        notify(parameters)
+    }
+    
 }
 
 extension ObserverSet: CustomStringConvertible {
