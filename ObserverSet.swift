@@ -26,108 +26,131 @@
 //
 
 import Dispatch
-import Foundation
 
+/// A reference to an entry in the list of observers. Use this to remove an observer.
 public class ObserverSetEntry<Parameters> {
     
-    fileprivate weak var object: AnyObject?
-    fileprivate let operationQueue: OperationQueue?
-    fileprivate let f: (AnyObject) -> (Parameters) -> Void
+    public typealias Callback = (Any) -> (Parameters) -> Void
     
-    fileprivate init(object: AnyObject, operationQueue: OperationQueue?, f: @escaping (AnyObject) -> (Parameters) -> Void) {
-        self.object = object
-        self.operationQueue = operationQueue
-        self.f = f
+    fileprivate weak var observer: AnyObject?
+    fileprivate let notificationQueue: DispatchQueue?
+    fileprivate let callback: Callback
+    
+    fileprivate init(observer: AnyObject?, notificationQueue: DispatchQueue?, callback: @escaping Callback) {
+        self.observer = observer
+        self.notificationQueue = notificationQueue
+        self.callback = callback
     }
     
 }
 
+/// A set of observers that can be notified of certain actions. A more Swift-like version of NSNotificationCenter.
 public class ObserverSet<Parameters> {
     
-    // Locking support
+    // MARK: - Private properties
     
-    fileprivate var queue = DispatchQueue(label: "com.mikeash.ObserverSet", attributes: [])
+    private var entries: [ObserverSetEntry<Parameters>] = []
+    private var queue = DispatchQueue(label: "com.mikeash.ObserverSet", attributes: [])
+    private var notificationQueue: DispatchQueue?
     
-    fileprivate func synchronized(_ f: () -> Void) {
-        queue.sync(execute: f)
-    }
+    // MARK: - Initializers
     
-    // Main implementation
-    
-    fileprivate var entries: [ObserverSetEntry<Parameters>] = []
-    
+    /**
+     Creates a new instance of an observer set.
+     
+     - returns: A new instance of an observer set.
+     */
     public init() {}
     
-    /// Adds an observer `object`, whose method `f` will be called on notification. The method will be added to `queue` if supplied, otherwise it is run synchronously on the notifying thread.
-    /// - Note: Because `object` is held weakly there may be no need to keep a reference to the returned
-    /// observer set entry for explicit removal.
-    /// - returns: an observer set entry which can be passed to `remove:` to stop observing
+    // MARK: - Public functions
+    
+    /**
+     Adds a new observer to the set.
+     
+     - parameter observer: The object that is to be notified.
+     - parameter callback: The function to call on the observer when the notification is to be delivered.
+     
+     - returns: An entry in the list of observers, which can be used later to remove the observer.
+     */
     @discardableResult
-    public func add<T: AnyObject>(_ object: T, operationQueue: OperationQueue? = nil, _ f: @escaping (T) -> (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
-        let entry = ObserverSetEntry<Parameters>(object: object, operationQueue: operationQueue, f: { f($0 as! T) })
+    public func add<T: AnyObject>(_ observer: T, notificationQueue: DispatchQueue? = nil, _ callback: @escaping (T) -> (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
+        let entry = ObserverSetEntry<Parameters>(observer: observer, notificationQueue: notificationQueue, callback: { observer in callback(observer as! T) })
         synchronized {
             self.entries.append(entry)
         }
         return entry
     }
     
-    /// Adds an observer `f` which will be called on notification. The method will be added to `queue` if supplied, otherwise it is run synchronously on the notifying thread.
-    /// - returns: an observer set entry which should be passed to `remove:` to stop observing
+    /**
+     Adds a new function to the list of functions to invoke when a notification is to be delivered.
+     
+     - parameter callback: The function to call when the notification is to be delivered.
+     
+     - returns: An entry in the list of observers, which can be used later to remove the observer.
+     */
     @discardableResult
-    public func add(_ operationQueue: OperationQueue? = nil, _ f: @escaping (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
-        return self.add(self, operationQueue: operationQueue, { _ in f })
+    public func add(_ notificationQueue: DispatchQueue? = nil, _ callback: @escaping (Parameters) -> Void) -> ObserverSetEntry<Parameters> {
+        return self.add(self, notificationQueue: notificationQueue, { _ in callback })
     }
     
-    /// Removes an observer set entry.
+    /**
+     Removes an observer from the list, using the entry which was returned when adding.
+     
+     - parameter entry: An entry returned when adding a new observer.
+     */
     public func remove(_ entry: ObserverSetEntry<Parameters>) {
         synchronized {
             self.entries = self.entries.filter { $0 !== entry }
         }
     }
     
-    /// Notifies current observers.
+    
+    /**
+     Removes an observer from the list.
+     
+     - parameter observer: An observer to remove from the list of observers.
+     */
+    public func removeObserver(_ observer: AnyObject) {
+        synchronized {
+            self.entries = self.entries.filter { $0.observer !== observer }
+        }
+    }
+    
+    /**
+     Call this method to notify all observers.
+     
+     - parameter parameters: The parameters that are required parameters specified using generics when the instance is created.
+     */
     public func notify(_ parameters: Parameters) {
-        var toCall: [(OperationQueue?, (Parameters) -> Void)] = []
-        
+        var callbacks: [(DispatchQueue?, (Parameters) -> Void)] = []
         synchronized {
             for entry in self.entries {
-                if let object: AnyObject = entry.object {
-                    toCall.append((entry.operationQueue, entry.f(object)))
+                if let observer = entry.observer {
+                    callbacks.append((entry.notificationQueue, entry.callback(observer)))
                 }
             }
-            self.entries = self.entries.filter { $0.object != nil }
+            self.entries = self.entries.filter { $0.observer != nil }
         }
-        
-        for (operationQueue, f) in toCall {
-            if let operationQueue = operationQueue {
-                operationQueue.addOperation(BlockOperation(block: {
-                    f(parameters)
-                }))
+        for (notificationQueue, callback) in callbacks {
+            if let notificationQueue = notificationQueue {
+                notificationQueue.async {
+                    callback(parameters)
+                }
             } else {
-                f(parameters)
+                callback(parameters)
             }
         }
     }
     
+    // MARK: - Private functions
+    
+    private func synchronized(_ f: () -> Void) {
+        queue.sync(execute: f)
+    }
 }
 
-extension ObserverSet: CustomStringConvertible {
-    
-    public var description: String {
-        var entries: [ObserverSetEntry<Parameters>] = []
-        synchronized {
-            entries = self.entries
-        }
-        
-        let strings = entries.map {
-            entry in
-            (entry.object === self
-                ? "\(entry.f)"
-                : "\(String(describing: entry.object)) \(entry.f)")
-        }
-        let joined = strings.joined(separator: ", ")
-        
-        return "\(Mirror(reflecting: self)): (\(joined))"
+public extension ObserverSet where Parameters == Void {
+    public func notify() {
+        notify(())
     }
-    
 }
