@@ -149,7 +149,7 @@ public class ObserverSet<Parameters> {
     }
 }
 
-public extension ObserverSet where Parameters == Void {
+extension ObserverSet where Parameters == Void {
     public func notify() {
         notify(())
     }
